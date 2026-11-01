@@ -711,5 +711,165 @@ void main() {
       expect(controller.activeTextFontSize, 16.0);
       expect(find.text('16pt'), findsOneWidget);
     });
+
+    test('Preferred default font size only affects body text; headers retain independent default sizes', () {
+      final controller = CanvasController();
+      controller.setPreferredFontSize(22.0);
+
+      // Create new text box with preferred body size of 22.0
+      controller.addTextBox(const Offset(50, 50));
+      expect(controller.activeTextFontSize, 22.0);
+      expect(controller.activeTextHeading, HeadingLevel.none);
+
+      // Switch to Heading 1 -> active font size becomes H1's own default: 26.0 (not 22.0)
+      controller.setHeading(HeadingLevel.h1);
+      expect(controller.activeTextHeading, HeadingLevel.h1);
+      expect(controller.activeTextFontSize, 26.0);
+
+      // Switch to Heading 2 -> active font size becomes H2's own default: 20.0
+      controller.setHeading(HeadingLevel.h2);
+      expect(controller.activeTextHeading, HeadingLevel.h2);
+      expect(controller.activeTextFontSize, 20.0);
+
+      // Switch to Heading 3 -> active font size becomes H3's own default: 17.0
+      controller.setHeading(HeadingLevel.h3);
+      expect(controller.activeTextHeading, HeadingLevel.h3);
+      expect(controller.activeTextFontSize, 17.0);
+
+      // Switch back to Body -> active font size returns to body default: 22.0
+      controller.setHeading(HeadingLevel.none);
+      expect(controller.activeTextHeading, HeadingLevel.none);
+      expect(controller.activeTextFontSize, 22.0);
+    });
+
+    testWidgets('TextBoxWidget scales height with large font size (40pt) without line overlap', (tester) async {
+      final controller = CanvasController();
+      controller.setTool(ToolType.text);
+
+      final box = controller.addTextBox(const Offset(50, 50));
+      box.text = 'Line 1\nLine 2\nLine 3';
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Stack(
+              children: [
+                NoteCanvas(controller: controller),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Set font size to 40.0
+      controller.selectTextBox(box.id);
+      controller.setFontSize(40.0);
+      await tester.pumpAndSettle();
+
+      // Verify the text field has expanded well beyond the old 63px scrunched height
+      final editable = tester.renderObject(find.byType(EditableText)) as RenderBox;
+      expect(editable.size.height, greaterThanOrEqualTo(150.0));
+    });
+
+    test('NoteTextBox serializes and deserializes headingDefaultFontSizes correctly', () {
+      final box = NoteTextBox(
+        id: 'box_heading_defaults',
+        position: const Offset(30, 40),
+        defaultFontSize: 18.0,
+        headingDefaultFontSizes: {
+          HeadingLevel.none: 18.0,
+          HeadingLevel.h1: 32.0,
+          HeadingLevel.h2: 24.0,
+          HeadingLevel.h3: 19.0,
+        },
+      );
+
+      final json = box.toJson();
+      expect(json['headingDefaultFontSizes'], isNotNull);
+      expect(json['headingDefaultFontSizes']['h1'], 32.0);
+
+      final restored = NoteTextBox.fromJson(json);
+      expect(restored.headingDefaultFontSizes?[HeadingLevel.h1], 32.0);
+      expect(restored.headingDefaultFontSizes?[HeadingLevel.h2], 24.0);
+      expect(restored.headingDefaultFontSizes?[HeadingLevel.h3], 19.0);
+      expect(restored.headingDefaultFontSizes?[HeadingLevel.none], 18.0);
+    });
+
+    test('Independent default font sizes for Body, H1, H2, and H3 can be set and configured individually', () {
+      final controller = CanvasController();
+
+      // Configure individual defaults
+      controller.setPreferredFontSizeForHeading(HeadingLevel.none, 18.0);
+      controller.setPreferredFontSizeForHeading(HeadingLevel.h1, 32.0);
+      controller.setPreferredFontSizeForHeading(HeadingLevel.h2, 24.0);
+      controller.setPreferredFontSizeForHeading(HeadingLevel.h3, 19.0);
+
+      expect(controller.defaultFontSizeForHeading(HeadingLevel.none), 18.0);
+      expect(controller.defaultFontSizeForHeading(HeadingLevel.h1), 32.0);
+      expect(controller.defaultFontSizeForHeading(HeadingLevel.h2), 24.0);
+      expect(controller.defaultFontSizeForHeading(HeadingLevel.h3), 19.0);
+
+      // Create new text box: uses 18.0 for body
+      final box = controller.addTextBox(const Offset(10, 10));
+      expect(controller.activeTextFontSize, 18.0);
+      expect(box.defaultFontSize, 18.0);
+
+      // Switch to H1 -> receives H1 custom default (32.0)
+      controller.setHeading(HeadingLevel.h1);
+      expect(controller.activeTextHeading, HeadingLevel.h1);
+      expect(controller.activeTextFontSize, 32.0);
+
+      // Switch to H2 -> receives H2 custom default (24.0)
+      controller.setHeading(HeadingLevel.h2);
+      expect(controller.activeTextHeading, HeadingLevel.h2);
+      expect(controller.activeTextFontSize, 24.0);
+
+      // Switch to H3 -> receives H3 custom default (19.0)
+      controller.setHeading(HeadingLevel.h3);
+      expect(controller.activeTextHeading, HeadingLevel.h3);
+      expect(controller.activeTextFontSize, 19.0);
+
+      // Switch back to Body -> receives Body custom default (18.0)
+      controller.setHeading(HeadingLevel.none);
+      expect(controller.activeTextHeading, HeadingLevel.none);
+      expect(controller.activeTextFontSize, 18.0);
+    });
+
+    testWidgets('TextBoxWidget cursor height dynamically matches font size', (tester) async {
+      final controller = CanvasController();
+      controller.setTool(ToolType.text);
+
+      final box = controller.addTextBox(const Offset(50, 50));
+      box.text = 'Large font cursor test';
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Stack(
+              children: [
+                NoteCanvas(controller: controller),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Set font size to 40.0
+      controller.selectTextBox(box.id);
+      controller.setFontSize(40.0);
+      await tester.pumpAndSettle();
+
+      var textField = tester.widget<TextField>(find.byType(TextField));
+      expect(textField.cursorHeight, 40.0 * 1.25);
+
+      // Now change font size to 16.0
+      controller.setFontSize(16.0);
+      await tester.pumpAndSettle();
+
+      textField = tester.widget<TextField>(find.byType(TextField));
+      expect(textField.cursorHeight, 16.0 * 1.25);
+    });
   });
 }

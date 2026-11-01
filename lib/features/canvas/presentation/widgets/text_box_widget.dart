@@ -150,33 +150,43 @@ class _TextBoxWidgetState extends State<TextBoxWidget> {
                 ),
                 child: Material(
                   color: Colors.transparent,
-                  child: Builder(builder: (context) {
-                    final isDark = widget.controller.isDarkMode;
-                    widget.richController.isDarkMode = isDark;
-                    return TextField(
-                      controller: widget.richController,
-                      focusNode: _focusNode,
-                      readOnly: !isTextTool,
-                      canRequestFocus: isTextTool,
-                      autofocus: isSelected,
-                      maxLines: null,
-                      textDirection: effectiveDirection,
-                      textAlign: isRtl ? TextAlign.right : TextAlign.left,
-                      keyboardType: TextInputType.multiline,
-                      cursorColor: isDark ? Colors.white : AppColors.primary,
-                      style: TextStyle(
-                        fontSize: widget.textBox.defaultFontSize ?? 15.0,
-                        color: isDark ? Colors.white : Colors.black87,
-                        decorationColor: isDark ? Colors.white : Colors.black87,
-                        height: 1.4,
-                      ),
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                        border: InputBorder.none,
-                      ),
-                    );
-                  }),
+                  child: ListenableBuilder(
+                    listenable: widget.richController,
+                    builder: (context, _) {
+                      final isDark = widget.controller.isDarkMode;
+                      widget.richController.isDarkMode = isDark;
+                      final activeSize = widget.richController.activeFontSize;
+                      return TextField(
+                        controller: widget.richController,
+                        focusNode: _focusNode,
+                        readOnly: !isTextTool,
+                        canRequestFocus: isTextTool,
+                        autofocus: isSelected,
+                        maxLines: null,
+                        textDirection: effectiveDirection,
+                        textAlign: isRtl ? TextAlign.right : TextAlign.left,
+                        keyboardType: TextInputType.multiline,
+                        cursorColor: isDark ? Colors.white : AppColors.primary,
+                        cursorHeight: activeSize * 1.25,
+                        strutStyle: StrutStyle(
+                          fontSize: activeSize,
+                          height: 1.4,
+                          forceStrutHeight: false,
+                        ),
+                        style: TextStyle(
+                          fontSize: activeSize,
+                          color: isDark ? Colors.white : Colors.black87,
+                          decorationColor: isDark ? Colors.white : Colors.black87,
+                          height: 1.4,
+                        ),
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                          border: InputBorder.none,
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
             ),

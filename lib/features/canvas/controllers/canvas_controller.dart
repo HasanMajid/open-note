@@ -274,12 +274,39 @@ class CanvasController extends ChangeNotifier {
     notifyListeners();
   }
 
-  double _preferredFontSize = 15.0;
-  double get preferredFontSize => _preferredFontSize;
+  final Map<HeadingLevel, double> _preferredHeadingFontSizes = {
+    HeadingLevel.none: 15.0,
+    HeadingLevel.h1: 26.0,
+    HeadingLevel.h2: 20.0,
+    HeadingLevel.h3: 17.0,
+  };
+
+  double get preferredFontSize =>
+      _preferredHeadingFontSizes[HeadingLevel.none] ?? 15.0;
+
+  Map<HeadingLevel, double> get preferredHeadingFontSizes =>
+      Map.unmodifiable(_preferredHeadingFontSizes);
+
+  double defaultFontSizeForHeading(HeadingLevel heading) =>
+      _preferredHeadingFontSizes[heading] ?? heading.defaultFontSize;
 
   void setPreferredFontSize(double size) {
-    if (_preferredFontSize == size) return;
-    _preferredFontSize = size;
+    setPreferredFontSizeForHeading(HeadingLevel.none, size);
+  }
+
+  void setPreferredFontSizeForHeading(HeadingLevel heading, double size) {
+    if (_preferredHeadingFontSizes[heading] == size) return;
+    _preferredHeadingFontSizes[heading] = size;
+    _activeRichTextController?.setDefaultFontSizeForHeading(heading, size);
+    final box = activeTextBox;
+    if (box != null) {
+      box.headingDefaultFontSizes ??= Map.from(_preferredHeadingFontSizes);
+      box.headingDefaultFontSizes![heading] = size;
+      if (heading == HeadingLevel.none) {
+        box.defaultFontSize = size;
+      }
+      updateTextBox(box);
+    }
     notifyListeners();
   }
 
@@ -302,10 +329,13 @@ class CanvasController extends ChangeNotifier {
       _activeRichTextController?.isSelectionUnderline ?? _activeTextUnderline;
   bool get activeTextStrikethrough =>
       _activeRichTextController?.isSelectionStrikethrough ?? _activeTextStrikethrough;
-  double get activeTextFontSize =>
-      _activeRichTextController?.activeFontSize ??
-      _activeTextFontSize ??
-      (activeTextBox?.defaultFontSize ?? _preferredFontSize);
+  double get activeTextFontSize {
+    if (_activeRichTextController != null) {
+      return _activeRichTextController!.activeFontSize;
+    }
+    if (_activeTextFontSize != null) return _activeTextFontSize!;
+    return defaultFontSizeForHeading(activeTextHeading);
+  }
   Color? get activeTextColor =>
       _activeRichTextController?.currentTextColor ?? _activeTextColor;
   Color? get activeTextHighlight =>
@@ -313,13 +343,34 @@ class CanvasController extends ChangeNotifier {
 
   void setFontSize(double size) {
     _activeTextFontSize = size;
-    if (_activeRichTextController != null) {
-      _activeRichTextController!.setFontSize(size);
-    }
-    final box = activeTextBox;
-    if (box != null && box.text.isEmpty) {
-      box.defaultFontSize = size;
-      updateTextBox(box);
+    final ctrl = _activeRichTextController;
+    if (ctrl != null) {
+      final sel = ctrl.effectiveSelection;
+      if (!sel.isCollapsed && sel.start < sel.end) {
+        ctrl.setFontSize(size);
+      } else {
+        ctrl.setFontSize(size);
+        final box = activeTextBox;
+        if (box != null) {
+          box.defaultFontSize = size;
+          if (box.spans.isEmpty) {
+            // Unstyled body text updates directly via defaultFontSize
+          } else if (sel.baseOffset < 0) {
+            // Box selected as a whole on canvas: update all text spans
+            ctrl.selection =
+                TextSelection(baseOffset: 0, extentOffset: ctrl.text.length);
+            ctrl.setFontSize(size);
+            ctrl.selection = const TextSelection.collapsed(offset: -1);
+          }
+          updateTextBox(box);
+        }
+      }
+    } else {
+      final box = activeTextBox;
+      if (box != null) {
+        box.defaultFontSize = size;
+        updateTextBox(box);
+      }
     }
     notifyListeners();
   }
@@ -365,11 +416,11 @@ class CanvasController extends ChangeNotifier {
   }
 
   void setHeading(HeadingLevel heading) {
+    _activeTextHeading = heading;
+    _activeTextFontSize = null;
     if (_activeRichTextController != null) {
       _activeRichTextController!.setHeading(heading);
       _activeTextHeading = _activeRichTextController!.currentHeading;
-    } else {
-      _activeTextHeading = heading;
     }
     notifyListeners();
   }
@@ -543,7 +594,8 @@ class CanvasController extends ChangeNotifier {
       position: position,
       width: width,
       text: text,
-      defaultFontSize: _preferredFontSize,
+      defaultFontSize: defaultFontSizeForHeading(HeadingLevel.none),
+      headingDefaultFontSizes: Map.from(_preferredHeadingFontSizes),
     );
     targetPage.textBoxes = [...targetPage.textBoxes, newBox];
     _activeTextBoxId = newBox.id;

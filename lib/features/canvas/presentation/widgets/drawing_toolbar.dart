@@ -901,7 +901,9 @@ class DrawingToolbar extends StatelessWidget {
 
   Widget _buildFontSizeControls(BuildContext context) {
     final currentSize = controller.activeTextFontSize;
-    final defaultSize = controller.preferredFontSize;
+    final currentHeading = controller.activeTextHeading;
+    final defaultForHeading =
+        controller.defaultFontSizeForHeading(currentHeading);
     final isDark = controller.isDarkMode;
 
     void stepDown() {
@@ -991,15 +993,18 @@ class DrawingToolbar extends StatelessWidget {
               ),
             ),
             itemBuilder: (context) => [
-              // Option to set current font size as default
+              // Option to set current font size as default for this heading type
               PopupMenuItem<double>(
                 value: -1,
                 onTap: () {
-                  controller.setPreferredFontSize(currentSize);
+                  controller.setPreferredFontSizeForHeading(
+                    currentHeading,
+                    currentSize,
+                  );
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                        'Default font size set to ${currentSize.round()}pt for new text boxes',
+                        'Default font size set to ${currentSize.round()}pt for ${currentHeading.label}',
                       ),
                       duration: const Duration(seconds: 2),
                       behavior: SnackBarBehavior.floating,
@@ -1009,11 +1014,11 @@ class DrawingToolbar extends StatelessWidget {
                 child: Row(
                   children: [
                     Icon(
-                      (currentSize - defaultSize).abs() < 0.5
+                      (currentSize - defaultForHeading).abs() < 0.5
                           ? Icons.check_circle_rounded
                           : Icons.bookmark_add_outlined,
                       size: 16,
-                      color: (currentSize - defaultSize).abs() < 0.5
+                      color: (currentSize - defaultForHeading).abs() < 0.5
                           ? const Color(0xFF4CAF50)
                           : (isDark
                               ? const Color(0xFF64B5F6)
@@ -1022,9 +1027,9 @@ class DrawingToolbar extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        (currentSize - defaultSize).abs() < 0.5
-                            ? '${currentSize.round()}pt is default for new boxes'
-                            : 'Set ${currentSize.round()}pt as default for new boxes',
+                        (currentSize - defaultForHeading).abs() < 0.5
+                            ? '${currentSize.round()}pt is default for ${currentHeading.label}'
+                            : 'Set ${currentSize.round()}pt as default for ${currentHeading.label}',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -1038,7 +1043,7 @@ class DrawingToolbar extends StatelessWidget {
               const PopupMenuDivider(),
               ..._standardFontSizes.map((size) {
                 final isCurrent = (currentSize - size).abs() < 0.5;
-                final isDefault = (defaultSize - size).abs() < 0.5;
+                final isDefault = (defaultForHeading - size).abs() < 0.5;
                 return PopupMenuItem<double>(
                   value: size,
                   child: Row(

@@ -253,10 +253,13 @@ class _NoteCanvasState extends State<NoteCanvas>
         defaultHighlight: widget.controller.activeTextHighlight,
         defaultFontSize:
             box.defaultFontSize ?? widget.controller.preferredFontSize,
+        headingDefaultFontSizes: box.headingDefaultFontSizes ??
+            widget.controller.preferredHeadingFontSizes,
       );
       ctrl.addListener(() {
         box.text = ctrl!.text;
         box.spans = ctrl.spans;
+        box.headingDefaultFontSizes = ctrl.headingDefaultFontSizes;
       });
       _textControllers[box.id] = ctrl;
     }

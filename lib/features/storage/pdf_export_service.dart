@@ -698,6 +698,7 @@ class PdfExportService {
         text: box.text,
         spans: box.spans,
         defaultFontSize: box.defaultFontSize ?? 15.0,
+        headingDefaultFontSizes: box.headingDefaultFontSizes,
         scale: scale,
         regularFont: regularFont,
       );
@@ -727,6 +728,7 @@ class PdfExportService {
     required String text,
     required List<RichTextSpan> spans,
     double defaultFontSize = 15.0,
+    Map<HeadingLevel, double>? headingDefaultFontSizes,
     required double scale,
     required pw.Font regularFont,
   }) {
@@ -797,12 +799,11 @@ class PdfExportService {
         }
       }
 
-      double effectiveFontSize = defaultFontSize;
-      if (segFontSize != null) {
-        effectiveFontSize = segFontSize;
-      } else if (segHeading != HeadingLevel.none) {
-        effectiveFontSize = segHeading.defaultFontSize;
-      }
+      double effectiveFontSize = segFontSize ??
+          (headingDefaultFontSizes?[segHeading] ??
+              (segHeading != HeadingLevel.none
+                  ? segHeading.defaultFontSize
+                  : defaultFontSize));
 
       final pwDecoration = pw.TextDecoration.combine([
         if (isUnderline) pw.TextDecoration.underline,

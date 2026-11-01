@@ -11,6 +11,7 @@ class NoteTextBox {
   List<RichTextSpan> spans;
   TextDirection? textDirection;
   double? defaultFontSize;
+  Map<HeadingLevel, double>? headingDefaultFontSizes;
 
   NoteTextBox({
     required this.id,
@@ -21,6 +22,7 @@ class NoteTextBox {
     List<RichTextSpan>? spans,
     this.textDirection,
     this.defaultFontSize,
+    this.headingDefaultFontSizes,
   }) : spans = spans ?? [];
 
   /// Minimum width allowed when resizing
@@ -58,6 +60,7 @@ class NoteTextBox {
     List<RichTextSpan>? spans,
     TextDirection? textDirection,
     double? defaultFontSize,
+    Map<HeadingLevel, double>? headingDefaultFontSizes,
   }) {
     return NoteTextBox(
       id: id ?? this.id,
@@ -70,6 +73,11 @@ class NoteTextBox {
           : this.spans.map((s) => s.copyWith()).toList(),
       textDirection: textDirection ?? this.textDirection,
       defaultFontSize: defaultFontSize ?? this.defaultFontSize,
+      headingDefaultFontSizes: headingDefaultFontSizes != null
+          ? Map.from(headingDefaultFontSizes)
+          : (this.headingDefaultFontSizes != null
+              ? Map.from(this.headingDefaultFontSizes!)
+              : null),
     );
   }
 
@@ -84,12 +92,28 @@ class NoteTextBox {
       'spans': spans.map((s) => s.toJson()).toList(),
       if (textDirection != null) 'textDirection': textDirection!.name,
       if (defaultFontSize != null) 'defaultFontSize': defaultFontSize,
+      if (headingDefaultFontSizes != null)
+        'headingDefaultFontSizes': headingDefaultFontSizes!.map(
+          (k, v) => MapEntry(k.name, v),
+        ),
     };
   }
 
   factory NoteTextBox.fromJson(Map<String, dynamic> json) {
     final rawSpans = (json['spans'] as List<dynamic>?) ?? [];
     final dirStr = json['textDirection'] as String?;
+    final rawHeadingSizes =
+        json['headingDefaultFontSizes'] as Map<String, dynamic>?;
+    final headingDefaultFontSizes = rawHeadingSizes?.map(
+      (k, v) => MapEntry(
+        HeadingLevel.values.firstWhere(
+          (h) => h.name == k,
+          orElse: () => HeadingLevel.none,
+        ),
+        (v as num).toDouble(),
+      ),
+    );
+
     return NoteTextBox(
       id: json['id'] as String? ?? 'box_${DateTime.now().millisecondsSinceEpoch}',
       position: Offset(
@@ -106,6 +130,7 @@ class NoteTextBox {
           ? TextDirection.rtl
           : (dirStr == 'ltr' ? TextDirection.ltr : null),
       defaultFontSize: (json['defaultFontSize'] as num?)?.toDouble(),
+      headingDefaultFontSizes: headingDefaultFontSizes,
     );
   }
 }

@@ -365,6 +365,7 @@ void main() {
 
       // Top boundary is at 24.0 or 40.0, well within maxTy (<= 40.0)
       expect(initialTy, lessThanOrEqualTo(40.0));
+      expect(initialTx, lessThanOrEqualTo(400.0));
 
       // Attempt to drag down by 800px (which would push the canvas down, ty > 40)
       await tester.drag(find.byType(NoteCanvas), const Offset(0, 800));

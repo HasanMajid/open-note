@@ -23,6 +23,7 @@ class RichTextEditingController extends TextEditingController {
   Color? _typingColor;
   Color? _typingHighlightColor;
   final double _defaultFontSize;
+  final Map<HeadingLevel, double> _headingDefaultFontSizes;
 
   RichTextEditingController({
     super.text,
@@ -33,9 +34,17 @@ class RichTextEditingController extends TextEditingController {
     bool defaultUnderline = false,
     bool defaultStrikethrough = false,
     double? defaultFontSize,
+    Map<HeadingLevel, double>? headingDefaultFontSizes,
     Color? defaultColor,
     Color? defaultHighlight,
-  }) : _defaultFontSize = defaultFontSize ?? 15.0 {
+  }) : _defaultFontSize = defaultFontSize ?? 15.0,
+       _headingDefaultFontSizes = {
+         HeadingLevel.none: defaultFontSize ?? 15.0,
+         HeadingLevel.h1: headingDefaultFontSizes?[HeadingLevel.h1] ?? 26.0,
+         HeadingLevel.h2: headingDefaultFontSizes?[HeadingLevel.h2] ?? 20.0,
+         HeadingLevel.h3: headingDefaultFontSizes?[HeadingLevel.h3] ?? 17.0,
+         if (headingDefaultFontSizes != null) ...headingDefaultFontSizes,
+       } {
     _spans = spans != null ? List.from(spans) : [];
     _previousText = text;
     _typingHeading = defaultHeading;
@@ -43,12 +52,24 @@ class RichTextEditingController extends TextEditingController {
     _typingItalic = defaultItalic;
     _typingUnderline = defaultUnderline;
     _typingStrikethrough = defaultStrikethrough;
-    _typingFontSize = defaultFontSize;
+    _typingFontSize = null;
     _typingColor = defaultColor;
     _typingHighlightColor = defaultHighlight;
   }
 
-  double get defaultFontSize => _defaultFontSize;
+  double get defaultFontSize =>
+      _headingDefaultFontSizes[HeadingLevel.none] ?? _defaultFontSize;
+
+  double defaultFontSizeForHeading(HeadingLevel heading) =>
+      _headingDefaultFontSizes[heading] ?? heading.defaultFontSize;
+
+  void setDefaultFontSizeForHeading(HeadingLevel heading, double size) {
+    _headingDefaultFontSizes[heading] = size;
+    notifyListeners();
+  }
+
+  Map<HeadingLevel, double> get headingDefaultFontSizes =>
+      Map.unmodifiable(_headingDefaultFontSizes);
 
   List<RichTextSpan> get spans => List.unmodifiable(_spans);
 
@@ -353,7 +374,7 @@ class RichTextEditingController extends TextEditingController {
         color: segColor,
         highlightColor: segHighlight,
         heading: segHeading,
-        fontSize: segFontSize,
+        fontSize: segFontSize ?? defaultFontSizeForHeading(segHeading),
       );
 
       children.add(TextSpan(
@@ -435,18 +456,15 @@ class RichTextEditingController extends TextEditingController {
     final sel = effectiveSelection;
     if (sel.isCollapsed) {
       if (_typingFontSize != null) return _typingFontSize!;
-      if (_typingHeading != HeadingLevel.none) {
-        return _typingHeading.defaultFontSize;
-      }
-      return _defaultFontSize;
+      return defaultFontSizeForHeading(_typingHeading);
     }
     for (final s in _spans) {
       if (s.overlaps(sel.start, sel.end)) {
         if (s.fontSize != null) return s.fontSize!;
-        if (s.heading != HeadingLevel.none) return s.heading.defaultFontSize;
+        return defaultFontSizeForHeading(s.heading);
       }
     }
-    return _typingFontSize ?? _defaultFontSize;
+    return _typingFontSize ?? defaultFontSizeForHeading(_typingHeading);
   }
 
   bool _checkSelectionAttribute(bool Function(RichTextSpan) check) {
@@ -539,6 +557,7 @@ class RichTextEditingController extends TextEditingController {
   void setHeading(HeadingLevel level) {
     final sel = effectiveSelection;
     _typingHeading = level;
+    _typingFontSize = null;
     if (!sel.isCollapsed && sel.start < sel.end) {
       _applyHeadingRange(sel.start, sel.end, level);
     }
@@ -549,7 +568,7 @@ class RichTextEditingController extends TextEditingController {
     _applyAttribute(
       start,
       end,
-      (s) => s.copyWith(heading: level),
+      (s) => s.copyWith(heading: level, clearFontSize: true),
       addIfMissing: level != HeadingLevel.none
           ? (s, e) => RichTextSpan(start: s, end: e, heading: level)
           : null,
