@@ -544,10 +544,19 @@ class CanvasController extends ChangeNotifier {
   double get selectionRotation => _selectionRotation;
   bool get isTransforming => _activeLassoHandle != LassoHandle.none;
 
+  static const int _w3cEraserButton = 32;
+
   bool _isStylusButtonPressed(int buttons) {
-    return (buttons & kPrimaryStylusButton != 0) ||
+    return (buttons & _w3cEraserButton != 0) ||
+        (buttons & kPrimaryStylusButton != 0) ||
         (buttons & kSecondaryButton != 0) ||
         (buttons & kSecondaryStylusButton != 0);
+  }
+
+  bool _isEraserActive(int buttons, PointerDeviceKind? kind) {
+    return _activeTool.isEraser ||
+        kind == PointerDeviceKind.invertedStylus ||
+        _isStylusButtonPressed(buttons);
   }
 
   void _cleanUpEmptyTextBoxes({String? exceptId}) {
@@ -1177,18 +1186,12 @@ class CanvasController extends ChangeNotifier {
       return;
     }
 
-    // 3. Inverted stylus tail automatically acts as an eraser
-    if (kind == PointerDeviceKind.invertedStylus && !_activeTool.isEraser) {
-      setTool(ToolType.strokeEraser);
-    }
-
-    // 4. Eraser handling
-    final isBarrelButton = _isStylusButtonPressed(buttons);
-    if (_activeTool.isEraser || isBarrelButton) {
+    // 3. Eraser handling (Eraser tool, inverted stylus tail, or stylus barrel/eraser button)
+    if (_isEraserActive(buttons, kind)) {
       eraserPointerNotifier.value = localPosition;
       _eraserGestureInitialStrokes = List.from(_strokes);
       _eraserGestureDidModify = false;
-      if (kind == PointerDeviceKind.touch) {
+      if (kind == PointerDeviceKind.touch && !_isStylusButtonPressed(buttons)) {
         // Defer touch erasure to move or up to prevent accidental erasure
         // when placing 2 fingers down for zoom/pan
         _drawingPointerId = pointer;
@@ -1330,8 +1333,8 @@ class CanvasController extends ChangeNotifier {
     }
 
     // S-Pen barrel button: instantly acts as an eraser while held
-    final isBarrelButton = _isStylusButtonPressed(buttons);
-    if (_activeTool.isEraser || isBarrelButton) {
+    // 3. Eraser handling (Eraser tool, inverted stylus tail, or stylus barrel/eraser button)
+    if (_isEraserActive(buttons, kind)) {
       if (_isDrawing) {
         _isDrawing = false;
         currentStrokeNotifier.value = [];
@@ -1468,10 +1471,10 @@ class CanvasController extends ChangeNotifier {
     if (_drawingPointerId != null && _drawingPointerId != pointer) return;
     _drawingPointerId = null;
 
-    final isBarrelButton = _isStylusButtonPressed(buttons);
+    // 3. Eraser handling (Eraser tool, inverted stylus tail, or stylus barrel/eraser button)
     final wasErasing = _eraserGestureInitialStrokes != null ||
-        _activeTool.isEraser ||
-        isBarrelButton;
+
+        _isEraserActive(buttons, kind);
 
     if (wasErasing) {
       if (_eraserPendingTouch && _eraserTouchDownPos != null) {

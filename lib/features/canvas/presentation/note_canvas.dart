@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -79,6 +80,9 @@ class _NoteCanvasState extends State<NoteCanvas>
   @override
   void initState() {
     super.initState();
+    if (kIsWeb) {
+      BrowserContextMenu.disableContextMenu();
+    }
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 280),
@@ -697,9 +701,11 @@ class _NoteCanvasState extends State<NoteCanvas>
                           }
                         },
                     onPointerDown: (e) {
-                      // Stylus palm rejection: ignore touch pointer if stylus is currently drawing
+                      // Stylus palm rejection: ignore touch pointer if stylus is currently drawing or erasing
                       if (_primaryDrawingPointer != null &&
-                          _primaryPointerKind == PointerDeviceKind.stylus &&
+                          (_primaryPointerKind == PointerDeviceKind.stylus ||
+                              _primaryPointerKind ==
+                                  PointerDeviceKind.invertedStylus) &&
                           e.kind == PointerDeviceKind.touch) {
                         return;
                       }
@@ -845,7 +851,49 @@ class _NoteCanvasState extends State<NoteCanvas>
                         final currentFocal = (pts[0] + pts[1]) / 2.0;
 
                         if (_initialPinchDistance > 10.0) {
-                          final scaleDelta = currentDistance / _initialPinchDistance;
+                          final RenderBox? box =
+                              context.findRenderObject() as RenderBox?;
+                          final viewportWidth =
+                              box != null && box.hasSize ? box.size.width : 600.0;
+                          final baseScale = _getBaseScale(viewportWidth);
+                          final minScale = AppConstants.minScale * baseScale;
+                          final maxScale = AppConstants.maxScale * baseScale;
+
+                          final initialScale = _getScale(_initialPinchMatrix);
+                          final rawScaleDelta =
+                              currentDistance / _initialPinchDistance;
+                          final rawTargetScale = initialScale * rawScaleDelta;
+                          final clampedTargetScale =
+                              rawTargetScale.clamp(minScale, maxScale);
+                          final effectiveScaleFactor =
+                              clampedTargetScale / initialScale;
+
+                          Offset effectiveFocal = currentFocal;
+                          if (rawTargetScale < minScale) {
+                            if (initialScale <= minScale) {
+                              // If already at minimum zoom, freeze focal drift during a pinch
+                              effectiveFocal = rawScaleDelta < 0.95
+                                  ? _initialPinchFocal
+                                  : currentFocal;
+                            } else {
+                              final f = (minScale - initialScale) /
+                                  (rawTargetScale - initialScale);
+                              effectiveFocal = _initialPinchFocal +
+                                  (currentFocal - _initialPinchFocal) * f;
+                            }
+                          } else if (rawTargetScale > maxScale) {
+                            if (initialScale >= maxScale) {
+                              // If already at maximum zoom, freeze focal drift during a pinch
+                              effectiveFocal = rawScaleDelta > 1.05
+                                  ? _initialPinchFocal
+                                  : currentFocal;
+                            } else {
+                              final f = (maxScale - initialScale) /
+                                  (rawTargetScale - initialScale);
+                              effectiveFocal = _initialPinchFocal +
+                                  (currentFocal - _initialPinchFocal) * f;
+                            }
+                          }
 
                           final translationBefore = Matrix4.translationValues(
                             -_initialPinchFocal.dx,
@@ -853,13 +901,13 @@ class _NoteCanvasState extends State<NoteCanvas>
                             0.0,
                           );
                           final scaleMatrix = Matrix4.diagonal3Values(
-                            scaleDelta,
-                            scaleDelta,
+                            effectiveScaleFactor,
+                            effectiveScaleFactor,
                             1.0,
                           );
                           final translationAfter = Matrix4.translationValues(
-                            currentFocal.dx,
-                            currentFocal.dy,
+                            effectiveFocal.dx,
+                            effectiveFocal.dy,
                             0.0,
                           );
 

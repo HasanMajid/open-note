@@ -523,5 +523,61 @@ void main() {
     expect(controller.strokes.length, 1);
     expect(controller.hasSelection, isFalse);
   });
+
+  testWidgets('Pinching inward past minScale clamps scale cleanly without translation drift or bouncing', (tester) async {
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final controller = CanvasController();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NoteCanvas(controller: controller),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final iv = tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
+    final tc = iv.transformationController!;
+
+    // First zoom out to 50% (minScale) using zoom-out button
+    for (int i = 0; i < 5; i++) {
+      await tester.tap(find.byIcon(Icons.remove));
+      await tester.pumpAndSettle();
+    }
+    expect(find.text('50%'), findsOneWidget);
+
+    final currentIv = tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
+    final scaleAtMin = currentIv.transformationController!.value.storage[0];
+    expect(scaleAtMin, closeTo(0.5, 0.01));
+    final txAtMin = tc.value.storage[12];
+    final tyAtMin = tc.value.storage[13];
+
+    // Now simulate two fingers pinching inward past minScale (from 200px apart to 60px apart)
+    final finger1 = await tester.startGesture(const Offset(400, 400), pointer: 10);
+    final finger2 = await tester.startGesture(const Offset(600, 400), pointer: 11);
+    await tester.pump();
+
+    // Move fingers inward
+    await finger1.moveTo(const Offset(470, 400));
+    await finger2.moveTo(const Offset(530, 400));
+    await tester.pump();
+
+    // Scale should still be clamped at minScale (0.5)
+    final scaleAfterPinch = currentIv.transformationController!.value.storage[0];
+    expect(scaleAfterPinch, closeTo(0.5, 0.01));
+
+    // Translation should NOT jump, pan or bounce around
+    final txAfterPinch = currentIv.transformationController!.value.storage[12];
+    final tyAfterPinch = currentIv.transformationController!.value.storage[13];
+    expect((txAfterPinch - txAtMin).abs(), lessThan(5.0));
+    expect((tyAfterPinch - tyAtMin).abs(), lessThan(5.0));
+
+    await finger1.up();
+    await finger2.up();
+    await tester.pumpAndSettle();
+  });
 }
 

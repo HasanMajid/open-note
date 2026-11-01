@@ -148,6 +148,91 @@ void main() {
       expect(controller.activeTool, ToolType.pen);
     });
 
+    test('Holding W3C stylus eraser button (buttons: 32 or 33) acts as stroke eraser without changing active pen', () {
+      final stroke = Stroke(
+        points: const [StrokePoint(0, 0), StrokePoint(100, 100)],
+        strokeWidth: 4.0,
+      );
+      controller.loadStrokes([stroke]);
+      expect(controller.strokes.length, 1);
+      expect(controller.activeTool, ToolType.pen);
+
+      // 1. W3C button bit 32 (standard POINTER_BUTTON_ERASER)
+      controller.onPointerDown(
+        const Offset(51, 49),
+        kind: PointerDeviceKind.stylus,
+        buttons: 32,
+      );
+      expect(controller.strokes, isEmpty);
+      expect(controller.activeTool, ToolType.pen);
+
+      // 2. Combined tip down + eraser bit (1 | 32 = 33)
+      controller.loadStrokes([stroke]);
+      expect(controller.strokes.length, 1);
+
+      controller.onPointerDown(
+        const Offset(51, 49),
+        kind: PointerDeviceKind.stylus,
+        buttons: 33,
+      );
+      expect(controller.strokes, isEmpty);
+      expect(controller.activeTool, ToolType.pen);
+    });
+
+    test('Drawing with invertedStylus acts as eraser without permanently changing activeTool', () {
+      final stroke = Stroke(
+        points: const [StrokePoint(0, 0), StrokePoint(100, 100)],
+        strokeWidth: 4.0,
+      );
+      controller.loadStrokes([stroke]);
+      expect(controller.strokes.length, 1);
+      expect(controller.activeTool, ToolType.pen);
+
+      controller.onPointerDown(
+        const Offset(51, 49),
+        kind: PointerDeviceKind.invertedStylus,
+      );
+      expect(controller.strokes, isEmpty);
+      // Tool remains pen for when the user flips back to the tip!
+      expect(controller.activeTool, ToolType.pen);
+    });
+
+    test('Clicking stylus eraser button mid-stroke switches to eraser and discards in-progress stroke', () {
+      final stroke = Stroke(
+        points: const [StrokePoint(0, 0), StrokePoint(100, 100)],
+        strokeWidth: 4.0,
+      );
+      controller.loadStrokes([stroke]);
+
+      // Start drawing a new stroke with pen tip
+      controller.onPointerDown(
+        const Offset(10, 10),
+        kind: PointerDeviceKind.stylus,
+        buttons: 1,
+      );
+      expect(controller.isDrawing, isTrue);
+
+      // Mid-stroke: user clicks or holds eraser button (bit 32) near the existing stroke
+      controller.onPointerMove(
+        const Offset(51, 49),
+        kind: PointerDeviceKind.stylus,
+        buttons: 33,
+      );
+      expect(controller.isDrawing, isFalse);
+      expect(controller.currentStrokeNotifier.value, isEmpty);
+      // Existing stroke is erased
+      expect(controller.strokes, isEmpty);
+
+      controller.onPointerUp(
+        const Offset(51, 49),
+        kind: PointerDeviceKind.stylus,
+        buttons: 0,
+      );
+      // Active tool is still Pen
+      expect(controller.activeTool, ToolType.pen);
+      expect(controller.strokes, isEmpty);
+    });
+
     test('Eraser hit-test removes intersected stroke', () {
       final stroke = Stroke(
         points: const [StrokePoint(0, 0), StrokePoint(100, 100)],
